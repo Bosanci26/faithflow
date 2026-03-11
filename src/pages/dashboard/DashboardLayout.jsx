@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { Navigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { useTenant } from '../../hooks/useTenant'
@@ -47,11 +48,7 @@ export default function DashboardLayout() {
     </div>
   )
 
-  if (!currentChurch) return (
-    <div className="dash-loading">
-      <span className="gold">✦</span> Nu ai o biserica asociata. Contacteaza administratorul.
-    </div>
-  )
+  if (!currentChurch) return <Navigate to="/setup" replace />
 
   const renderTab = () => {
     const props = { church: currentChurch, userRole, refreshChurch }
