@@ -5,7 +5,21 @@
       "Bash(npx create-vite@latest:*)",
       "Bash(printf y\\\\n:*)",
       "Bash(npm install:*)",
-      "Bash(npm run build 2>&1)"
+      "Bash(npm run build 2>&1)",
+      "Bash(gh repo:*)",
+      "Bash(where gh:*)",
+      "Bash(cmd /c \"where gh\")",
+      "Read(//c/Program Files/**)",
+      "Bash(git config:*)",
+      "Bash(winget install:*)",
+      "Bash(export PATH=\"$PATH:/c/Program Files/GitHub CLI\" && gh --version 2>&1)",
+      "Bash(export PATH=\"$PATH:/c/Program Files/GitHub CLI\" && gh auth status 2>&1)",
+      "Bash(export PATH=\"$PATH:/c/Program Files/GitHub CLI\" && gh repo create faithflow --public --description \"FaithFlow - Spiritual Growth App\" 2>&1)",
+      "Bash(git remote:*)",
+      "Bash(find /c/Users/andre/faithflow -type f -name \"*.sql\" -o -name \"*.md\" 2>/dev/null | head -20)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
