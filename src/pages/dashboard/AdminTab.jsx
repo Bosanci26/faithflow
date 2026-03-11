@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { generateStampilaSVG, stampilaSVGtoDataURL } from '../../lib/stampila'
-import { DENOMINATIUNI } from '../../lib/constants'
+import { DENOMINATIUNI, VENITURI_CATEGORII, CHELTUIELI_CATEGORII } from '../../lib/constants'
 import { useAuth } from '../../contexts/AuthContext'
 
 export default function AdminTab({ church, userRole, refreshChurch }) {
@@ -14,8 +14,16 @@ export default function AdminTab({ church, userRole, refreshChurch }) {
     denomination: church.denomination || '',
     city: church.city || '',
     county: church.county || '',
-    email: church.email || ''
+    email: church.email || '',
+    pastor_name: church.pastor_name || '',
+    casier_name: church.casier_name || ''
   })
+
+  // Categorii custom
+  const [customVen, setCustomVen] = useState(church.custom_categories_venituri || [])
+  const [customChel, setCustomChel] = useState(church.custom_categories_cheltuieli || [])
+  const [newVenCat, setNewVenCat] = useState('')
+  const [newChelCat, setNewChelCat] = useState('')
 
   // Utilizatori
   const [inviteEmail, setInviteEmail] = useState('')
@@ -41,12 +49,46 @@ export default function AdminTab({ church, userRole, refreshChurch }) {
       denomination: info.denomination,
       city: info.city,
       county: info.county,
-      email: info.email
+      email: info.email,
+      pastor_name: info.pastor_name,
+      casier_name: info.casier_name
     }).eq('id', church.id)
     await refreshChurch()
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
+  }
+
+  const handleAddVenCat = async () => {
+    if (!newVenCat.trim()) return
+    const updated = [...customVen, newVenCat.trim()]
+    setCustomVen(updated)
+    setNewVenCat('')
+    await supabase.from('churches').update({ custom_categories_venituri: updated }).eq('id', church.id)
+    await refreshChurch()
+  }
+
+  const handleRemoveVenCat = async (cat) => {
+    const updated = customVen.filter(c => c !== cat)
+    setCustomVen(updated)
+    await supabase.from('churches').update({ custom_categories_venituri: updated }).eq('id', church.id)
+    await refreshChurch()
+  }
+
+  const handleAddChelCat = async () => {
+    if (!newChelCat.trim()) return
+    const updated = [...customChel, newChelCat.trim()]
+    setCustomChel(updated)
+    setNewChelCat('')
+    await supabase.from('churches').update({ custom_categories_cheltuieli: updated }).eq('id', church.id)
+    await refreshChurch()
+  }
+
+  const handleRemoveChelCat = async (cat) => {
+    const updated = customChel.filter(c => c !== cat)
+    setCustomChel(updated)
+    await supabase.from('churches').update({ custom_categories_cheltuieli: updated }).eq('id', church.id)
+    await refreshChurch()
   }
 
   const loadMembers = async () => {
@@ -62,7 +104,6 @@ export default function AdminTab({ church, userRole, refreshChurch }) {
   const handleInvite = async (e) => {
     e.preventDefault()
     setInviting(true)
-    // Insert invitation record
     const token = Math.random().toString(36).slice(2) + Date.now().toString(36)
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
     await supabase.from('church_invitations').insert({
@@ -88,7 +129,6 @@ export default function AdminTab({ church, userRole, refreshChurch }) {
   const handleUploadStamp = async () => {
     if (!stampPreview) return
     setSaving(true)
-    // Upload to Supabase Storage
     const filename = `stamps/${church.id}-${Date.now()}.png`
     const base64 = stampPreview.split(',')[1]
     const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0))
@@ -121,6 +161,9 @@ export default function AdminTab({ church, userRole, refreshChurch }) {
       <div className="toggle-pill" style={{ marginBottom: 20 }}>
         <button className={subTab === 'setari' ? 'active' : ''} onClick={() => setSubTab('setari')}>
           Setari
+        </button>
+        <button className={subTab === 'categorii' ? 'active' : ''} onClick={() => setSubTab('categorii')}>
+          Categorii
         </button>
         <button
           className={subTab === 'utilizatori' ? 'active' : ''}
@@ -167,6 +210,19 @@ export default function AdminTab({ church, userRole, refreshChurch }) {
               <label>Email de contact</label>
               <input type="email" value={info.email} onChange={e => setInfo(i => ({ ...i, email: e.target.value }))} disabled={!canEdit} />
             </div>
+
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, marginTop: 8, borderTop: '1px solid var(--border)', paddingTop: 16 }}>Conducere</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="form-group">
+                <label>Numele Pastorului</label>
+                <input value={info.pastor_name} onChange={e => setInfo(i => ({ ...i, pastor_name: e.target.value }))} disabled={!canEdit} placeholder="Prenume Nume" />
+              </div>
+              <div className="form-group">
+                <label>Numele Casierului</label>
+                <input value={info.casier_name} onChange={e => setInfo(i => ({ ...i, casier_name: e.target.value }))} disabled={!canEdit} placeholder="Prenume Nume" />
+              </div>
+            </div>
+
             {canEdit && (
               <button type="submit" className="btn btn-gold" disabled={saving}>
                 {saving ? 'Se salveaza...' : 'Salveaza setarile'}
@@ -219,6 +275,88 @@ export default function AdminTab({ church, userRole, refreshChurch }) {
         </div>
       )}
 
+      {subTab === 'categorii' && (
+        <div className="fade-in">
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }}>Categorii Venituri</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+              {VENITURI_CATEGORII.map(c => (
+                <span key={c} style={{
+                  background: 'rgba(76,175,125,0.12)', color: 'var(--success)',
+                  borderRadius: 6, padding: '4px 10px', fontSize: 13
+                }}>{c}</span>
+              ))}
+              {customVen.map(c => (
+                <span key={c} style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  background: 'rgba(212,168,67,0.12)', color: 'var(--gold)',
+                  borderRadius: 6, padding: '4px 10px', fontSize: 13
+                }}>
+                  {c}
+                  {canEdit && (
+                    <button onClick={() => handleRemoveVenCat(c)} style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: 'var(--danger)', fontSize: 14, lineHeight: 1, padding: 0
+                    }}>×</button>
+                  )}
+                </span>
+              ))}
+            </div>
+            {canEdit && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  value={newVenCat}
+                  onChange={e => setNewVenCat(e.target.value)}
+                  placeholder="Categorie noua..."
+                  style={{ flex: 1 }}
+                  onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddVenCat())}
+                />
+                <button className="btn btn-gold btn-sm" onClick={handleAddVenCat}>+ Adauga</button>
+              </div>
+            )}
+          </div>
+
+          <div className="card">
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }}>Categorii Cheltuieli</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+              {CHELTUIELI_CATEGORII.map(c => (
+                <span key={c} style={{
+                  background: 'rgba(224,82,82,0.12)', color: 'var(--danger)',
+                  borderRadius: 6, padding: '4px 10px', fontSize: 13
+                }}>{c}</span>
+              ))}
+              {customChel.map(c => (
+                <span key={c} style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  background: 'rgba(212,168,67,0.12)', color: 'var(--gold)',
+                  borderRadius: 6, padding: '4px 10px', fontSize: 13
+                }}>
+                  {c}
+                  {canEdit && (
+                    <button onClick={() => handleRemoveChelCat(c)} style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: 'var(--danger)', fontSize: 14, lineHeight: 1, padding: 0
+                    }}>×</button>
+                  )}
+                </span>
+              ))}
+            </div>
+            {canEdit && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  value={newChelCat}
+                  onChange={e => setNewChelCat(e.target.value)}
+                  placeholder="Categorie noua..."
+                  style={{ flex: 1 }}
+                  onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddChelCat())}
+                />
+                <button className="btn btn-gold btn-sm" onClick={handleAddChelCat}>+ Adauga</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {subTab === 'utilizatori' && (
         <div className="fade-in">
           {canEdit && (
@@ -256,23 +394,14 @@ export default function AdminTab({ church, userRole, refreshChurch }) {
               <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>Niciun membru gasit.</div>
             ) : members.map((m) => (
               <div key={m.id} style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                padding: '10px 0',
-                borderBottom: '1px solid var(--border)'
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '10px 0', borderBottom: '1px solid var(--border)'
               }}>
                 <div style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: '50%',
-                  background: 'rgba(212,168,67,0.15)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--gold)',
-                  fontWeight: 700,
-                  fontSize: 14
+                  width: 36, height: 36, borderRadius: '50%',
+                  background: 'rgba(212,168,67,0.15)', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
+                  color: 'var(--gold)', fontWeight: 700, fontSize: 14
                 }}>
                   {(m.profiles?.full_name || m.profiles?.email || '?')[0].toUpperCase()}
                 </div>

@@ -7,12 +7,26 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'supabase-cache',
+              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 },
+              networkTimeoutSeconds: 5
+            }
+          }
+        ]
+      },
       manifest: {
         name: 'FaithFlow',
         short_name: 'FaithFlow',
         description: 'Church Financial Management',
         theme_color: '#D4A843',
-        background_color: '#070d1b',
+        background_color: '#f0ede8',
         display: 'standalone',
         start_url: '/',
         icons: [

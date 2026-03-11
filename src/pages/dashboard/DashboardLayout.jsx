@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
@@ -29,7 +29,16 @@ export default function DashboardLayout() {
   const { currentChurch, userRole, allChurches, loading, switchChurch, refreshChurch } = useTenant()
   const [activeTab, setActiveTab] = useState('acasa')
   const [superAdminMode, setSuperAdminMode] = useState(false)
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
   const touchStartX = useRef(null)
+
+  useEffect(() => {
+    const on = () => setIsOnline(true)
+    const off = () => setIsOnline(false)
+    window.addEventListener('online', on)
+    window.addEventListener('offline', off)
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
+  }, [])
 
   const handleTouchStart = (e) => { touchStartX.current = e.touches[0].clientX }
   const handleTouchEnd = (e) => {
@@ -84,7 +93,10 @@ export default function DashboardLayout() {
               <div className="church-location">{currentChurch.city}, {currentChurch.county}</div>
             </div>
           </div>
-          <span className="badge badge-live"><span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--success)', display: 'inline-block' }}></span> LIVE</span>
+          {isOnline
+            ? <span className="badge badge-live"><span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--success)', display: 'inline-block' }}></span> LIVE</span>
+            : <span className="badge" style={{ background: 'rgba(224,82,82,0.15)', color: 'var(--danger)', border: '1px solid var(--danger)' }}>📵 Offline</span>
+          }
         </div>
 
         <div className="dash-header-right">

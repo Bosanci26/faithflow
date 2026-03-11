@@ -11,7 +11,11 @@ export default function AdaugaTab({ church }) {
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
 
-  const cats = type === 'venit' ? VENITURI_CATEGORII : CHELTUIELI_CATEGORII
+  const customVen = church?.custom_categories_venituri || []
+  const customChel = church?.custom_categories_cheltuieli || []
+  const cats = type === 'venit'
+    ? [...VENITURI_CATEGORII, ...customVen]
+    : [...CHELTUIELI_CATEGORII, ...customChel]
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
 

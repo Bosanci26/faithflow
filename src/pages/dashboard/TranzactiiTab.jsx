@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { toRON, formatCurrency, formatRON, CURRENCIES } from '../../lib/constants'
+import * as XLSX from 'xlsx'
 
 const FILTERS = ['Toate', 'Venituri', 'Cheltuieli']
 
@@ -9,6 +10,7 @@ export default function TranzactiiTab({ church }) {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('Toate')
   const [monedaFilter, setMonedaFilter] = useState('Toate')
+  const [search, setSearch] = useState('')
   const [deleting, setDeleting] = useState(null)
 
   useEffect(() => { loadAll() }, [church])
@@ -36,11 +38,33 @@ export default function TranzactiiTab({ church }) {
     loadAll()
   }
 
+  const handleExportExcel = () => {
+    const rows = filtered.map(it => ({
+      'Tip': it.tip === 'venit' ? 'Venit' : 'Cheltuiala',
+      'Data': it.data,
+      'Categorie': it.categorie || '',
+      'Descriere': it.descriere || '',
+      'Suma': it.suma,
+      'Moneda': it.moneda,
+      'Echivalent RON': toRON(it.suma, it.moneda).toFixed(2)
+    }))
+    const ws = XLSX.utils.json_to_sheet(rows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Tranzactii')
+    XLSX.writeFile(wb, `tranzactii-${church.name}-${new Date().toISOString().split('T')[0]}.xlsx`)
+  }
+
   const monede = ['Toate', ...CURRENCIES]
+  const q = search.toLowerCase()
   const filtered = items.filter(it => {
     const matchType = filter === 'Toate' || (filter === 'Venituri' && it.tip === 'venit') || (filter === 'Cheltuieli' && it.tip === 'cheltuiala')
     const matchMon = monedaFilter === 'Toate' || it.moneda === monedaFilter
-    return matchType && matchMon
+    const matchSearch = !q || (
+      (it.categorie || '').toLowerCase().includes(q) ||
+      (it.descriere || '').toLowerCase().includes(q) ||
+      String(it.suma).includes(q)
+    )
+    return matchType && matchMon && matchSearch
   })
 
   const totalVen = filtered.filter(i => i.tip === 'venit').reduce((s, i) => s + toRON(i.suma, i.moneda), 0)
@@ -48,7 +72,22 @@ export default function TranzactiiTab({ church }) {
 
   return (
     <div>
-      <h2 className="section-title">Tranzactii</h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+        <h2 className="section-title" style={{ marginBottom: 0 }}>Tranzactii</h2>
+        <button className="btn btn-ghost btn-sm" onClick={handleExportExcel} title="Export Excel">
+          📊 Excel
+        </button>
+      </div>
+
+      {/* Search */}
+      <div style={{ marginBottom: 12 }}>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Cauta dupa categorie, descriere, suma..."
+          style={{ width: '100%' }}
+        />
+      </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <div className="toggle-pill" style={{ flex: 1, minWidth: 200 }}>
@@ -83,7 +122,7 @@ export default function TranzactiiTab({ church }) {
       ) : filtered.length === 0 ? (
         <div className="empty-state">
           <div className="icon">📋</div>
-          <p>Nicio tranzactie gasita</p>
+          <p>{search ? 'Niciun rezultat pentru cautare' : 'Nicio tranzactie gasita'}</p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -100,9 +139,7 @@ export default function TranzactiiTab({ church }) {
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
                 <div style={{
-                  fontFamily: 'Playfair Display',
-                  fontWeight: 700,
-                  fontSize: 15,
+                  fontFamily: 'Playfair Display', fontWeight: 700, fontSize: 15,
                   color: item.tip === 'venit' ? 'var(--success)' : 'var(--danger)'
                 }}>
                   {item.tip === 'cheltuiala' ? '-' : '+'}{formatCurrency(item.suma, item.moneda)}

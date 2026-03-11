@@ -14,7 +14,6 @@ function addStampila(doc, church, x, y, w = 80, h = 25) {
   try {
     doc.addImage(dataUrl, 'SVG', x, y, w, h)
   } catch {
-    // fallback: draw rectangle with text
     doc.setDrawColor(184, 134, 11)
     doc.setLineWidth(0.5)
     doc.rect(x, y, w, h)
@@ -50,7 +49,7 @@ function baseHeader(doc, church) {
 function baseFooter(doc, pageH) {
   doc.setFontSize(7)
   doc.setTextColor(150)
-  doc.text('Document generat - Platforma FaithFlow', 105, pageH - 10, { align: 'center' })
+  doc.text('Document generat automat - FaithFlow', 105, pageH - 10, { align: 'center' })
 }
 
 export function generateChitanta(church, data) {
@@ -66,15 +65,19 @@ export function generateChitanta(church, data) {
 
   doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
-  doc.text(`Nr. ${stripDiacritics(data.nr || '')}`, 105, 51, { align: 'center' })
+  doc.text(`Nr. ${stripDiacritics(String(data.nr || ''))}`, 105, 51, { align: 'center' })
 
   let y = 62
   const sym = CURRENCY_SYMBOLS[data.moneda] || data.moneda
+  const casier = stripDiacritics(data.casier || church.casier_name || '')
+
   const fields = [
     ['Data:', data.data],
-    ['Persoana:', stripDiacritics(data.persoana || '')],
+    ['Donator:', stripDiacritics(data.donator || data.persoana || '')],
     ['Suma:', `${data.suma} ${sym}`],
-    ['Destinatie:', stripDiacritics(data.detalii || '')]
+    ['Categorie:', stripDiacritics(data.categorie || '')],
+    ['Scopul donatiei:', stripDiacritics(data.scop || data.detalii || '—')],
+    ['Casier:', casier]
   ]
 
   doc.setFontSize(10)
@@ -82,29 +85,28 @@ export function generateChitanta(church, data) {
     doc.setFont('helvetica', 'bold')
     doc.text(label, 20, y)
     doc.setFont('helvetica', 'normal')
-    doc.text(String(val || ''), 55, y)
+    doc.text(String(val || ''), 65, y)
     y += 8
   })
 
   y += 4
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
   const bodyText = stripDiacritics(
-    `Am primit de la ${data.persoana || '........'} suma de ${data.suma} ${sym}, reprezentand ${data.detalii || '........'}.`
+    `Am primit de la ${data.donator || data.persoana || '........'} suma de ${data.suma} ${sym}, ` +
+    `reprezentand ${data.scop || data.detalii || '........'}.`
   )
   const lines = doc.splitTextToSize(bodyText, 165)
   doc.text(lines, 20, y)
-  y += lines.length * 6 + 10
+  y += lines.length * 6 + 14
 
-  // Semnaturi
+  // Only Casier signature
   doc.setFont('helvetica', 'bold')
-  doc.text('Casier / Trezorier', 30, y)
-  doc.text('Pastor / Presedinte', 130, y)
+  doc.text('Casier', 30, y)
   doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.text(casier, 30, y + 6)
   doc.line(20, y + 15, 80, y + 15)
-  doc.line(120, y + 15, 180, y + 15)
 
-  addStampila(doc, church, 120, y + 18, 60, 20)
+  addStampila(doc, church, 120, y - 4, 60, 22)
 
   baseFooter(doc, pageH)
   return doc
@@ -123,42 +125,73 @@ export function generateProcesVerbal(church, data) {
 
   doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
-  doc.text(`Nr. ${stripDiacritics(data.nr || '')}`, 105, 51, { align: 'center' })
+  doc.text(`Nr. ${stripDiacritics(String(data.nr || ''))}`, 105, 51, { align: 'center' })
 
   let y = 62
   const sym = CURRENCY_SYMBOLS[data.moneda] || data.moneda
+  const casier = stripDiacritics(data.casier || church.casier_name || '')
+  const pastor = stripDiacritics(data.pastor || church.pastor_name || '')
+
+  const fields = [
+    ['Data:', data.data],
+    ['Tip serviciu:', stripDiacritics(data.tipServiciu || data.detalii || '')],
+    ['Suma colectata:', `${data.suma} ${sym}`],
+    ['Casier:', casier],
+    ['Pastor:', pastor],
+    ['Martor 1:', stripDiacritics(data.martor1 || '')],
+    ['Martor 2:', stripDiacritics(data.martor2 || '')],
+    ['Observatii:', stripDiacritics(data.observatii || '—')]
+  ]
 
   doc.setFontSize(10)
-  doc.setFont('helvetica', 'bold')
-  doc.text('Data:', 20, y)
-  doc.setFont('helvetica', 'normal')
-  doc.text(String(data.data || ''), 55, y)
-  y += 10
+  fields.forEach(([label, val]) => {
+    doc.setFont('helvetica', 'bold')
+    doc.text(label, 20, y)
+    doc.setFont('helvetica', 'normal')
+    doc.text(String(val || ''), 65, y)
+    y += 8
+  })
 
+  y += 6
   const bodyText = stripDiacritics(
-    `Subsemnatul/a, ${data.persoana || '........'}, in calitate de reprezentant al ${church.name || 'bisericii'}, ` +
-    `adevereste ca in data de ${data.data || '........'} s-a efectuat urmatoarea operatiune financiara: ` +
-    `${data.detalii || '........'}, in valoare de ${data.suma || '0'} ${sym}.`
+    `Subsemnatii, in calitate de reprezentanti ai ${church.name || 'bisericii'}, ` +
+    `adeverim ca in data de ${data.data || '........'} s-a colectat suma de ${data.suma} ${sym} ` +
+    `la ${data.tipServiciu || data.detalii || 'serviciul de inchinare'}.`
   )
-  doc.setFontSize(10)
   const lines = doc.splitTextToSize(bodyText, 165)
   doc.text(lines, 20, y)
-  y += lines.length * 6 + 15
+  y += lines.length * 6 + 12
 
+  // Signatures: Casier + Pastor + Martori
   doc.setFont('helvetica', 'bold')
-  doc.text('Casier / Trezorier', 30, y)
-  doc.text('Pastor / Presedinte', 130, y)
-  doc.setFont('helvetica', 'normal')
-  doc.line(20, y + 15, 80, y + 15)
-  doc.line(120, y + 15, 180, y + 15)
+  doc.setFontSize(10)
+  doc.text('Casier', 20, y)
+  doc.text('Pastor', 85, y)
+  doc.text('Martor 1', 140, y)
 
-  addStampila(doc, church, 120, y + 18, 60, 20)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.text(casier, 20, y + 6)
+  doc.text(pastor, 85, y + 6)
+
+  doc.line(20, y + 15, 75, y + 15)
+  doc.line(85, y + 15, 130, y + 15)
+  doc.line(140, y + 15, 190, y + 15)
+
+  y += 22
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(10)
+  doc.text('Martor 2', 20, y)
+  doc.setFont('helvetica', 'normal')
+  doc.line(20, y + 15, 75, y + 15)
+
+  addStampila(doc, church, 125, y - 5, 60, 22)
 
   baseFooter(doc, pageH)
   return doc
 }
 
-export function generateAdeverinta(church, data) {
+export function generateDonatie(church, data) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageH = doc.internal.pageSize.height
 
@@ -167,37 +200,71 @@ export function generateAdeverinta(church, data) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(14)
   doc.setTextColor(20)
-  doc.text('ADEVERINTA AJUTOR SOCIAL', 105, 44, { align: 'center' })
+  doc.text('DONATIE', 105, 44, { align: 'center' })
 
   doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
-  doc.text(`Nr. ${stripDiacritics(data.nr || '')}`, 105, 51, { align: 'center' })
+  doc.text(`Nr. ${stripDiacritics(String(data.nr || ''))}`, 105, 51, { align: 'center' })
 
   let y = 62
   const sym = CURRENCY_SYMBOLS[data.moneda] || data.moneda
+  const casier = stripDiacritics(data.casier || church.casier_name || '')
+  const pastor = stripDiacritics(data.pastor || church.pastor_name || '')
+  const ci = data.serieCI && data.nrCI ? `${data.serieCI} ${data.nrCI}` : '—'
 
-  const bodyText = stripDiacritics(
-    `Prin prezenta se adevereste ca ${data.persoana || '........'} a beneficiat de ajutor social ` +
-    `din partea ${church.name || 'bisericii'}, in valoare de ${data.suma || '0'} ${sym}, ` +
-    `acordat in data de ${data.data || '........'}, pentru urmatorul scop: ${data.detalii || '........'}.`
-  )
+  const fields = [
+    ['Data:', data.data],
+    ['Tip donatie:', stripDiacritics(data.tipDonatie || 'Donatie financiara')],
+    ['Beneficiar:', stripDiacritics(data.beneficiar || data.persoana || '')],
+    ['Serie/Nr. CI:', stripDiacritics(ci)],
+    ['Adresa:', stripDiacritics(data.adresa || '—')],
+    ['Suma:', `${data.suma} ${sym}`],
+    ['Casier:', casier],
+    ['Pastor:', pastor]
+  ]
+
   doc.setFontSize(10)
+  fields.forEach(([label, val]) => {
+    doc.setFont('helvetica', 'bold')
+    doc.text(label, 20, y)
+    doc.setFont('helvetica', 'normal')
+    doc.text(String(val || ''), 65, y)
+    y += 8
+  })
+
+  y += 4
+  const bodyText = stripDiacritics(
+    `Prin prezenta se adevereste ca ${data.beneficiar || data.persoana || '........'}, ` +
+    `posesor al C.I. seria ${data.serieCI || '...'} nr. ${data.nrCI || '......'}, ` +
+    `a primit o ${data.tipDonatie || 'donatie'} in valoare de ${data.suma} ${sym} ` +
+    `din partea ${church.name || 'bisericii'}, acordata in data de ${data.data || '........'}.`
+  )
   const lines = doc.splitTextToSize(bodyText, 165)
   doc.text(lines, 20, y)
-  y += lines.length * 6 + 15
+  y += lines.length * 6 + 12
 
+  // Signatures: Casier + Pastor
   doc.setFont('helvetica', 'bold')
-  doc.text('Casier / Trezorier', 30, y)
-  doc.text('Pastor / Presedinte', 130, y)
+  doc.setFontSize(10)
+  doc.text('Casier', 20, y)
+  doc.text('Pastor', 130, y)
+
   doc.setFont('helvetica', 'normal')
-  doc.line(20, y + 15, 80, y + 15)
-  doc.line(120, y + 15, 180, y + 15)
+  doc.setFontSize(9)
+  doc.text(casier, 20, y + 6)
+  doc.text(pastor, 130, y + 6)
+
+  doc.line(20, y + 15, 90, y + 15)
+  doc.line(120, y + 15, 190, y + 15)
 
   addStampila(doc, church, 120, y + 18, 60, 20)
 
   baseFooter(doc, pageH)
   return doc
 }
+
+// Keep old name as alias for history re-download
+export const generateAdeverinta = generateDonatie
 
 export function generateRaport(church, data, tip, interval) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })

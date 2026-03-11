@@ -15,6 +15,8 @@ export default function SetupPage() {
     denomination: user?.user_metadata?.denomination || 'Penticostala',
     city: user?.user_metadata?.city || '',
     county: user?.user_metadata?.county || '',
+    pastorName: '',
+    casierName: ''
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -40,6 +42,8 @@ export default function SetupPage() {
         denomination: form.denomination,
         city: form.city,
         county: form.county,
+        pastor_name: form.pastorName,
+        casier_name: form.casierName
       })
       .select()
       .single()
@@ -104,6 +108,16 @@ export default function SetupPage() {
             <div className="form-group">
               <label>Judet *</label>
               <input value={form.county} onChange={set('county')} placeholder="Cluj" required />
+            </div>
+          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label>Numele Pastorului *</label>
+              <input value={form.pastorName} onChange={set('pastorName')} placeholder="Prenume Nume" required />
+            </div>
+            <div className="form-group">
+              <label>Numele Casierului *</label>
+              <input value={form.casierName} onChange={set('casierName')} placeholder="Prenume Nume" required />
             </div>
           </div>
 

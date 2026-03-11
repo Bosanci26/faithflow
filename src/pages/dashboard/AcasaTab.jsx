@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { toRON, formatRON, CURRENCIES, formatCurrency } from '../../lib/constants'
+import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import './AcasaTab.css'
 
 const ACTIUNI = [
@@ -10,30 +11,67 @@ const ACTIUNI = [
   { icon: '📋', label: 'Proces Verbal', tab: 'documente', type: 'pv' }
 ]
 
+function getLast6Months() {
+  const months = []
+  const now = new Date()
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    months.push({
+      key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+      label: d.toLocaleString('ro-RO', { month: 'short', year: '2-digit' })
+    })
+  }
+  return months
+}
+
 export default function AcasaTab({ church, onNavigate }) {
-  const [stats, setStats] = useState({ totalRON: 0, venituri: 0, cheltuieli: 0, byCat: [] })
+  const [stats, setStats] = useState({ totalRON: 0, venituri: 0, cheltuieli: 0 })
+  const [chartData, setChartData] = useState([])
   const [loading, setLoading] = useState(true)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [feedback, setFeedback] = useState({ cat: 'Bug', msg: '' })
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
 
   useEffect(() => {
     loadStats()
+    const handleOnline = () => setIsOnline(true)
+    const handleOffline = () => setIsOnline(false)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline) }
   }, [church])
 
   const loadStats = async () => {
     setLoading(true)
+    const months = getLast6Months()
+    const sixMonthsAgo = months[0].key + '-01'
+
     const [{ data: ven }, { data: chel }] = await Promise.all([
-      supabase.from('venituri').select('suma,moneda').eq('church_id', church.id),
-      supabase.from('cheltuieli').select('suma,moneda').eq('church_id', church.id)
+      supabase.from('venituri').select('suma,moneda,data').eq('church_id', church.id),
+      supabase.from('cheltuieli').select('suma,moneda,data').eq('church_id', church.id)
     ])
 
     const totalVen = (ven || []).reduce((s, r) => s + toRON(r.suma, r.moneda), 0)
     const totalChel = (chel || []).reduce((s, r) => s + toRON(r.suma, r.moneda), 0)
-    setStats({
-      totalRON: totalVen - totalChel,
-      venituri: totalVen,
-      cheltuieli: totalChel
+    setStats({ totalRON: totalVen - totalChel, venituri: totalVen, cheltuieli: totalChel })
+
+    // Build chart data
+    const monthMap = {}
+    months.forEach(m => { monthMap[m.key] = { name: m.label, venituri: 0, cheltuieli: 0 } });
+    (ven || []).forEach(r => {
+      const k = r.data?.slice(0, 7)
+      if (monthMap[k]) monthMap[k].venituri += toRON(r.suma, r.moneda)
+    });
+    (chel || []).forEach(r => {
+      const k = r.data?.slice(0, 7)
+      if (monthMap[k]) monthMap[k].cheltuieli += toRON(r.suma, r.moneda)
     })
+    setChartData(months.map(m => ({
+      ...monthMap[m.key],
+      venituri: Math.round(monthMap[m.key].venituri * 100) / 100,
+      cheltuieli: Math.round(monthMap[m.key].cheltuieli * 100) / 100
+    })))
+
     setLoading(false)
   }
 
@@ -45,8 +83,36 @@ export default function AcasaTab({ church, onNavigate }) {
     setFeedback({ cat: 'Bug', msg: '' })
   }
 
+  // Trial: created_at + 14 zile
+  const trialDays = church?.created_at
+    ? Math.max(0, 14 - Math.floor((Date.now() - new Date(church.created_at).getTime()) / 86400000))
+    : null
+
   return (
     <div className="acasa-tab">
+      {/* Offline banner */}
+      {!isOnline && (
+        <div style={{
+          background: 'rgba(224,82,82,0.15)', border: '1px solid var(--danger)',
+          color: 'var(--danger)', borderRadius: 10, padding: '8px 14px',
+          marginBottom: 12, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8
+        }}>
+          📵 Mod offline — datele afisate pot sa nu fie actualizate
+        </div>
+      )}
+
+      {/* Trial warning */}
+      {trialDays !== null && trialDays <= 7 && (
+        <div style={{
+          background: trialDays <= 2 ? 'rgba(224,82,82,0.12)' : 'rgba(212,168,67,0.12)',
+          border: `1px solid ${trialDays <= 2 ? 'var(--danger)' : 'var(--gold)'}`,
+          color: trialDays <= 2 ? 'var(--danger)' : 'var(--gold)',
+          borderRadius: 10, padding: '8px 14px', marginBottom: 12, fontSize: 13
+        }}>
+          ⏳ Trial expira in {trialDays} {trialDays === 1 ? 'zi' : 'zile'} — upgradeaza pentru acces complet
+        </div>
+      )}
+
       {/* Patrimoniu total */}
       <div className="patrimoniu-card card fade-in">
         <div className="patrimoniu-label">Sold Total Patrimoniu</div>
@@ -84,6 +150,28 @@ export default function AcasaTab({ church, onNavigate }) {
           </button>
         </div>
       </div>
+
+      {/* Grafic evolutie 6 luni */}
+      {!loading && chartData.some(d => d.venituri > 0 || d.cheltuieli > 0) && (
+        <div className="card" style={{ marginBottom: 16, padding: '16px 12px' }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: 'var(--text-muted)' }}>
+            Evolutie ultimele 6 luni (RON)
+          </div>
+          <ResponsiveContainer width="100%" height={160}>
+            <LineChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 10 }} />
+              <Tooltip
+                formatter={(val, name) => [`${val.toFixed(2)} lei`, name === 'venituri' ? 'Venituri' : 'Cheltuieli']}
+                contentStyle={{ fontSize: 12, borderRadius: 8 }}
+              />
+              <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
+              <Line type="monotone" dataKey="venituri" stroke="#4caf7d" strokeWidth={2} dot={false} name="venituri" />
+              <Line type="monotone" dataKey="cheltuieli" stroke="#e05252" strokeWidth={2} dot={false} name="cheltuieli" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {/* Actiuni rapide */}
       <div className="actiuni-section">
