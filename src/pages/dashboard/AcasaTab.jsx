@@ -5,10 +5,10 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } f
 import './AcasaTab.css'
 
 const ACTIUNI = [
-  { icon: '📥', label: 'Venit nou', tab: 'adauga', type: 'venit' },
-  { icon: '📤', label: 'Cheltuiala', tab: 'adauga', type: 'cheltuiala' },
-  { icon: '📄', label: 'Chitanta', tab: 'documente', type: 'chitanta' },
-  { icon: '📋', label: 'Proces Verbal', tab: 'documente', type: 'pv' }
+  { icon: '📥', label: 'Venit nou', tab: 'adauga' },
+  { icon: '📤', label: 'Cheltuiala', tab: 'adauga' },
+  { icon: '📄', label: 'Chitanta', tab: 'documente', tip: 'chitanta' },
+  { icon: '📋', label: 'Colecta duminicala', tab: 'documente', tip: 'proces_verbal' }
 ]
 
 function getLast6Months() {
@@ -181,7 +181,7 @@ export default function AcasaTab({ church, onNavigate }) {
             <button
               key={i}
               className="actiune-btn card-sm"
-              onClick={() => onNavigate(a.tab)}
+              onClick={() => onNavigate(a.tab, a.tip || null)}
             >
               <span className="actiune-icon">{a.icon}</span>
               <span className="actiune-label">{a.label}</span>

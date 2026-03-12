@@ -23,9 +23,16 @@ const TIP_DONATIE = [
   'Donatie financiara', 'Donatie materiala', 'Ajutor social'
 ]
 
-export default function DocumenteTab({ church, refreshChurch }) {
+export default function DocumenteTab({ church, refreshChurch, initialTip }) {
   const [subTab, setSubTab] = useState('genereaza')
-  const [tip, setTip] = useState('chitanta')
+  const [tip, setTip] = useState(initialTip || 'chitanta')
+
+  useEffect(() => {
+    if (initialTip) {
+      setSubTab('genereaza')
+      setTip(initialTip)
+    }
+  }, [initialTip])
   const [generating, setGenerating] = useState(false)
   const [success, setSuccess] = useState('')
   const [docs, setDocs] = useState([])
