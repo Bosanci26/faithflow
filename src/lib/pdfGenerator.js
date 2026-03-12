@@ -2,314 +2,395 @@ import { jsPDF } from 'jspdf'
 import { CULTE, CURRENCY_SYMBOLS, stripDiacritics } from './constants'
 import { generateStampilaSVG, stampilaSVGtoDataURL } from './stampila'
 
-function addStampila(doc, church, x, y, w = 80, h = 25) {
+// --- Number to Romanian words ---
+function numarInLitere(n) {
+  const nr = Math.floor(n)
+  if (nr === 0) return 'zero'
+  const unitati = ['', 'unu', 'doi', 'trei', 'patru', 'cinci', 'sase', 'sapte', 'opt', 'noua',
+    'zece', 'unsprezece', 'doisprezece', 'treisprezece', 'paisprezece', 'cincisprezece',
+    'saisprezece', 'saptesprezece', 'optsprezece', 'nouasprezece']
+  const zeci = ['', '', 'douazeci', 'treizeci', 'patruzeci', 'cincizeci', 'saizeci', 'saptezeci', 'optzeci', 'nouazeci']
+  if (nr < 20) return unitati[nr]
+  if (nr < 100) {
+    const d = Math.floor(nr / 10), u = nr % 10
+    return zeci[d] + (u > 0 ? ' si ' + unitati[u] : '')
+  }
+  if (nr < 1000) {
+    const s = Math.floor(nr / 100), rest = nr % 100
+    const sute = s === 1 ? 'o suta' : s === 2 ? 'doua sute' : unitati[s] + ' sute'
+    return rest > 0 ? sute + ' si ' + numarInLitere(rest) : sute
+  }
+  if (nr < 1000000) {
+    const m = Math.floor(nr / 1000), rest = nr % 1000
+    const mii = m === 1 ? 'o mie' : m === 2 ? 'doua mii' : numarInLitere(m) + ' mii'
+    return rest > 0 ? mii + ' si ' + numarInLitere(rest) : mii
+  }
+  return String(nr)
+}
+
+function sumaInLitere(suma, moneda) {
+  const intPart = Math.floor(suma)
+  const decPart = Math.round((suma - intPart) * 100)
+  const sym = moneda === 'RON' ? 'lei' : moneda
+  let text = numarInLitere(intPart) + ' ' + sym
+  if (decPart > 0) text += ' si ' + numarInLitere(decPart) + ' bani'
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
+// --- Stamp: rectangular, 3 rows ---
+function addStampilaRect(doc, church, x, y, w = 65, h = 28) {
   if (church.stamp_url) {
-    try {
-      doc.addImage(church.stamp_url, 'PNG', x, y, w, h)
-      return
-    } catch {}
+    try { doc.addImage(church.stamp_url, 'PNG', x, y, w, h); return } catch {}
   }
   const svg = generateStampilaSVG(church)
   const dataUrl = stampilaSVGtoDataURL(svg)
-  try {
-    doc.addImage(dataUrl, 'SVG', x, y, w, h)
-  } catch {
-    doc.setDrawColor(184, 134, 11)
-    doc.setLineWidth(0.5)
-    doc.rect(x, y, w, h)
-    doc.setFontSize(7)
-    doc.setTextColor(184, 134, 11)
-    doc.text(stripDiacritics(church.name || ''), x + w / 2, y + h / 2, { align: 'center' })
-    doc.setTextColor(0)
-  }
-}
+  try { doc.addImage(dataUrl, 'SVG', x, y, w, h); return } catch {}
 
-function baseHeader(doc, church) {
-  const cult = CULTE[church.denomination] || church.denomination || ''
+  // Fallback: draw manually
+  const cult = stripDiacritics(CULTE[church.denomination] || church.denomination || '')
+  const name = stripDiacritics(church.name || '')
+  const location = stripDiacritics(`${church.city || ''} - jud. ${church.county || ''}`)
+  const cx = x + w / 2
+
+  doc.setDrawColor(184, 134, 11)
+  doc.setLineWidth(1.2)
+  doc.rect(x, y, w, h)
+  doc.setLineWidth(0.4)
+  doc.rect(x + 2, y + 2, w - 4, h - 4)
+
+  doc.setTextColor(120, 85, 0)
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  doc.setTextColor(100)
-  doc.text(stripDiacritics(cult), 105, 15, { align: 'center' })
+  doc.setFontSize(6.5)
+  doc.text(cult, cx, y + 9, { align: 'center' })
 
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(13)
-  doc.setTextColor(20)
-  doc.text(stripDiacritics(church.name || ''), 105, 22, { align: 'center' })
+  doc.setFontSize(9)
+  doc.text(name, cx, y + 17, { align: 'center' })
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(7)
+  doc.text(location, cx, y + 24, { align: 'center' })
+
+  doc.setTextColor(0)
+}
+
+// --- Header: thick lines + church info + cross ---
+function newHeader(doc, church) {
+  const cult = stripDiacritics(CULTE[church.denomination] || church.denomination || '')
+  const name = stripDiacritics(church.name || '')
+  const location = stripDiacritics(`${church.city || ''}, jud. ${church.county || ''}`)
+
+  doc.setDrawColor(20, 20, 20)
+  doc.setLineWidth(1.5)
+  doc.line(15, 12, 195, 12)
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
-  doc.setTextColor(80)
-  doc.text(stripDiacritics(`${church.city || ''}, jud. ${church.county || ''}`), 105, 28, { align: 'center' })
+  doc.setTextColor(80, 80, 80)
+  doc.text(cult, 105, 20, { align: 'center' })
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(15)
+  doc.setTextColor(20, 20, 20)
+  doc.text(name, 105, 29, { align: 'center' })
+
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(80, 80, 80)
+  doc.text(location, 105, 37, { align: 'center' })
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(14)
+  doc.setTextColor(184, 134, 11)
+  doc.text('+', 105, 44, { align: 'center' })
+
+  doc.setDrawColor(20, 20, 20)
+  doc.setLineWidth(1.5)
+  doc.line(15, 48, 195, 48)
+}
+
+// --- Title + gold line, returns next y ---
+function addTitle(doc, title, y = 57) {
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(16)
+  doc.setTextColor(20, 20, 20)
+  doc.text(title, 105, y, { align: 'center' })
 
   doc.setDrawColor(212, 168, 67)
+  doc.setLineWidth(0.4)
+  doc.line(55, y + 5, 155, y + 5)
+
+  return y + 14
+}
+
+// --- Amount box with sum in words ---
+function addAmountBox(doc, suma, moneda, y) {
+  const sym = CURRENCY_SYMBOLS[moneda] || moneda
+  const amountText = `${suma} ${sym}`
+  const litere = sumaInLitere(suma, moneda)
+
+  doc.setDrawColor(40, 40, 40)
   doc.setLineWidth(0.8)
-  doc.line(15, 32, 195, 32)
+  doc.rect(55, y, 100, 16)
+
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(18)
+  doc.setTextColor(20, 20, 20)
+  doc.text(amountText, 105, y + 11, { align: 'center' })
+
+  doc.setFont('helvetica', 'italic')
+  doc.setFontSize(9)
+  doc.setTextColor(80, 80, 80)
+  doc.text('(' + stripDiacritics(litere) + ')', 105, y + 23, { align: 'center' })
+
+  return y + 29
 }
 
-function baseFooter(doc, pageH) {
+// --- Signature columns ---
+function addSignatures(doc, signatories, y) {
+  if (!signatories.length) return y
+  const count = signatories.length
+  const colW = 180 / count
+  const startX = 15
+
+  signatories.forEach((sig, i) => {
+    const cx = startX + colW * i + colW / 2
+    const lx1 = startX + colW * i + 4
+    const lx2 = startX + colW * (i + 1) - 4
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.setTextColor(20, 20, 20)
+    doc.text(sig.label + ',', cx, y, { align: 'center' })
+
+    if (sig.name) {
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(9)
+      doc.setTextColor(60, 60, 60)
+      doc.text(stripDiacritics(sig.name), cx, y + 7, { align: 'center' })
+    }
+
+    doc.setDrawColor(40, 40, 40)
+    doc.setLineWidth(0.4)
+    doc.line(lx1, y + 16, lx2, y + 16)
+  })
+
+  return y + 22
+}
+
+// --- Footer ---
+function newFooter(doc, church) {
+  const pageH = doc.internal.pageSize.height
+  const name = stripDiacritics(church.name || '')
+  const city = stripDiacritics(church.city || '')
+  const county = stripDiacritics(church.county || '')
+  doc.setFont('helvetica', 'normal')
   doc.setFontSize(7)
-  doc.setTextColor(150)
-  doc.text('Document generat automat - FaithFlow', 105, pageH - 10, { align: 'center' })
+  doc.setTextColor(150, 150, 150)
+  doc.text(
+    `Document generat electronic - ${name} - ${city} - ${county}`,
+    105, pageH - 8, { align: 'center' }
+  )
 }
 
+// ============================================================
+// CHITANTA
+// ============================================================
 export function generateChitanta(church, data) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageH = doc.internal.pageSize.height
 
-  baseHeader(doc, church)
+  newHeader(doc, church)
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(16)
-  doc.setTextColor(20)
-  doc.text('CHITANTA', 105, 44, { align: 'center' })
+  let y = addTitle(doc, 'CHITANTA', 57)
 
-  doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
-  doc.text(`Nr. ${stripDiacritics(String(data.nr || ''))}`, 105, 51, { align: 'center' })
+  doc.setFontSize(10)
+  doc.setTextColor(80, 80, 80)
+  doc.text(`Nr. ${stripDiacritics(String(data.nr || ''))} / ${data.data || ''}`, 105, y, { align: 'center' })
+  y += 14
 
-  let y = 62
   const sym = CURRENCY_SYMBOLS[data.moneda] || data.moneda
   const casier = stripDiacritics(data.casier || church.casier_name || '')
+  const donator = stripDiacritics(data.donator || data.persoana || '........')
+  const scop = stripDiacritics(data.scop || data.detalii || data.categorie || '........')
 
-  const fields = [
-    ['Data:', data.data],
-    ['Donator:', stripDiacritics(data.donator || data.persoana || '')],
-    ['Suma:', `${data.suma} ${sym}`],
-    ['Categorie:', stripDiacritics(data.categorie || '')],
-    ['Scopul donatiei:', stripDiacritics(data.scop || data.detalii || '—')],
-    ['Casier:', casier]
-  ]
-
-  doc.setFontSize(10)
-  fields.forEach(([label, val]) => {
-    doc.setFont('helvetica', 'bold')
-    doc.text(label, 20, y)
-    doc.setFont('helvetica', 'normal')
-    doc.text(String(val || ''), 65, y)
-    y += 8
-  })
-
-  y += 4
   const bodyText = stripDiacritics(
-    `Am primit de la ${data.donator || data.persoana || '........'} suma de ${data.suma} ${sym}, ` +
-    `reprezentand ${data.scop || data.detalii || '........'}.`
+    `Am primit de la ${donator} suma de ${data.suma} ${sym}, ` +
+    `reprezentand ${scop}.`
   )
-  const lines = doc.splitTextToSize(bodyText, 165)
-  doc.text(lines, 20, y)
-  y += lines.length * 6 + 14
-
-  // Only Casier signature
-  doc.setFont('helvetica', 'bold')
-  doc.text('Casier', 30, y)
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  doc.text(casier, 30, y + 6)
-  doc.line(20, y + 15, 80, y + 15)
+  doc.setFontSize(11)
+  doc.setTextColor(30, 30, 30)
+  const bodyLines = doc.splitTextToSize(bodyText, 170)
+  doc.text(bodyLines, 20, y)
+  y += bodyLines.length * 7 + 12
 
-  addStampila(doc, church, 120, y - 4, 60, 22)
+  y = addAmountBox(doc, data.suma, data.moneda, y)
+  y += 12
 
-  baseFooter(doc, pageH)
+  y = addSignatures(doc, [{ label: 'Casier', name: casier }], y)
+
+  addStampilaRect(doc, church, 128, pageH - 55, 62, 28)
+  newFooter(doc, church)
   return doc
 }
 
+// ============================================================
+// PROCES VERBAL COLECTA
+// ============================================================
 export function generateProcesVerbal(church, data) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageH = doc.internal.pageSize.height
 
-  baseHeader(doc, church)
+  newHeader(doc, church)
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(16)
-  doc.setTextColor(20)
-  doc.text('PROCES VERBAL', 105, 44, { align: 'center' })
+  let y = addTitle(doc, 'PROCES VERBAL COLECTA', 57)
 
-  doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
-  doc.text(`Nr. ${stripDiacritics(String(data.nr || ''))}`, 105, 51, { align: 'center' })
+  doc.setFontSize(10)
+  doc.setTextColor(80, 80, 80)
+  doc.text(`Nr. ${stripDiacritics(String(data.nr || ''))} / ${data.data || ''}`, 105, y, { align: 'center' })
+  y += 14
 
-  let y = 62
   const sym = CURRENCY_SYMBOLS[data.moneda] || data.moneda
   const casier = stripDiacritics(data.casier || church.casier_name || '')
   const pastor = stripDiacritics(data.pastor || church.pastor_name || '')
+  const tipServiciu = stripDiacritics(data.tipServiciu || data.detalii || 'serviciul de inchinare')
+  const martor1 = stripDiacritics(data.martor1 || '')
+  const martor2 = stripDiacritics(data.martor2 || '')
+  const obs = data.observatii ? stripDiacritics(data.observatii) : ''
 
-  const fields = [
-    ['Data:', data.data],
-    ['Tip serviciu:', stripDiacritics(data.tipServiciu || data.detalii || '')],
-    ['Suma colectata:', `${data.suma} ${sym}`],
-    ['Casier:', casier],
-    ['Pastor:', pastor],
-    ['Martor 1:', stripDiacritics(data.martor1 || '')],
-    ['Martor 2:', stripDiacritics(data.martor2 || '')],
-    ['Observatii:', stripDiacritics(data.observatii || '—')]
-  ]
-
-  doc.setFontSize(10)
-  fields.forEach(([label, val]) => {
-    doc.setFont('helvetica', 'bold')
-    doc.text(label, 20, y)
-    doc.setFont('helvetica', 'normal')
-    doc.text(String(val || ''), 65, y)
-    y += 8
-  })
-
-  y += 6
   const bodyText = stripDiacritics(
     `Subsemnatii, in calitate de reprezentanti ai ${church.name || 'bisericii'}, ` +
-    `adeverim ca in data de ${data.data || '........'} s-a colectat suma de ${data.suma} ${sym} ` +
-    `la ${data.tipServiciu || data.detalii || 'serviciul de inchinare'}.`
+    `adeverim ca in data de ${data.data || '........'} la ${tipServiciu}, ` +
+    `s-a colectat suma de ${data.suma} ${sym}.` +
+    (obs ? ` Observatii: ${obs}.` : '')
   )
-  const lines = doc.splitTextToSize(bodyText, 165)
-  doc.text(lines, 20, y)
-  y += lines.length * 6 + 12
-
-  // Signatures: Casier + Pastor + Martori
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.text('Casier', 20, y)
-  doc.text('Pastor', 85, y)
-  doc.text('Martor 1', 140, y)
-
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  doc.text(casier, 20, y + 6)
-  doc.text(pastor, 85, y + 6)
+  doc.setFontSize(11)
+  doc.setTextColor(30, 30, 30)
+  const bodyLines = doc.splitTextToSize(bodyText, 170)
+  doc.text(bodyLines, 20, y)
+  y += bodyLines.length * 7 + 12
 
-  doc.line(20, y + 15, 75, y + 15)
-  doc.line(85, y + 15, 130, y + 15)
-  doc.line(140, y + 15, 190, y + 15)
+  y = addAmountBox(doc, data.suma, data.moneda, y)
+  y += 12
 
-  y += 22
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.text('Martor 2', 20, y)
-  doc.setFont('helvetica', 'normal')
-  doc.line(20, y + 15, 75, y + 15)
+  const sigs = [
+    { label: 'Casier', name: casier },
+    { label: 'Pastor', name: pastor }
+  ]
+  if (martor1) sigs.push({ label: 'Martor 1', name: martor1 })
+  if (martor2) sigs.push({ label: 'Martor 2', name: martor2 })
+  y = addSignatures(doc, sigs, y)
 
-  addStampila(doc, church, 125, y - 5, 60, 22)
-
-  baseFooter(doc, pageH)
+  addStampilaRect(doc, church, 128, pageH - 55, 62, 28)
+  newFooter(doc, church)
   return doc
 }
 
+// ============================================================
+// ADEVERINTA DONATIE
+// ============================================================
 export function generateDonatie(church, data) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageH = doc.internal.pageSize.height
 
-  baseHeader(doc, church)
+  newHeader(doc, church)
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(14)
-  doc.setTextColor(20)
-  doc.text('DONATIE', 105, 44, { align: 'center' })
+  let y = addTitle(doc, 'ADEVERINTA DONATIE', 57)
 
-  doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
-  doc.text(`Nr. ${stripDiacritics(String(data.nr || ''))}`, 105, 51, { align: 'center' })
+  doc.setFontSize(10)
+  doc.setTextColor(80, 80, 80)
+  doc.text(`Nr. ${stripDiacritics(String(data.nr || ''))} / ${data.data || ''}`, 105, y, { align: 'center' })
+  y += 14
 
-  let y = 62
   const sym = CURRENCY_SYMBOLS[data.moneda] || data.moneda
   const casier = stripDiacritics(data.casier || church.casier_name || '')
   const pastor = stripDiacritics(data.pastor || church.pastor_name || '')
-  const ci = data.serieCI && data.nrCI ? `${data.serieCI} ${data.nrCI}` : '—'
+  const beneficiar = stripDiacritics(data.beneficiar || data.persoana || '........')
+  const tipDonatie = stripDiacritics(data.tipDonatie || 'donatie financiara')
+  const adresa = data.adresa ? stripDiacritics(data.adresa) : ''
 
-  const fields = [
-    ['Data:', data.data],
-    ['Tip donatie:', stripDiacritics(data.tipDonatie || 'Donatie financiara')],
-    ['Beneficiar:', stripDiacritics(data.beneficiar || data.persoana || '')],
-    ['Serie/Nr. CI:', stripDiacritics(ci)],
-    ['Adresa:', stripDiacritics(data.adresa || '—')],
-    ['Suma:', `${data.suma} ${sym}`],
-    ['Casier:', casier],
-    ['Pastor:', pastor]
-  ]
-
-  doc.setFontSize(10)
-  fields.forEach(([label, val]) => {
-    doc.setFont('helvetica', 'bold')
-    doc.text(label, 20, y)
-    doc.setFont('helvetica', 'normal')
-    doc.text(String(val || ''), 65, y)
-    y += 8
-  })
-
-  y += 4
-  const bodyText = stripDiacritics(
-    `Prin prezenta se adevereste ca ${data.beneficiar || data.persoana || '........'}, ` +
-    `posesor al C.I. seria ${data.serieCI || '...'} nr. ${data.nrCI || '......'}, ` +
-    `a primit o ${data.tipDonatie || 'donatie'} in valoare de ${data.suma} ${sym} ` +
-    `din partea ${church.name || 'bisericii'}, acordata in data de ${data.data || '........'}.`
-  )
-  const lines = doc.splitTextToSize(bodyText, 165)
-  doc.text(lines, 20, y)
-  y += lines.length * 6 + 12
-
-  // Signatures: Casier + Pastor
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.text('Casier', 20, y)
-  doc.text('Pastor', 130, y)
+  let bodyText = `Prin prezenta se adevereste ca ${beneficiar}`
+  if (data.serieCI && data.nrCI) {
+    bodyText += `, posesor al C.I. seria ${data.serieCI} nr. ${data.nrCI}`
+  }
+  if (adresa) bodyText += `, cu domiciliul in ${adresa}`
+  bodyText += `, a beneficiat de o ${tipDonatie} in valoare de ${data.suma} ${sym}, `
+  bodyText += `acordata de catre ${church.name || 'biserica'}, in data de ${data.data || '........'}.`
+  bodyText = stripDiacritics(bodyText)
 
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  doc.text(casier, 20, y + 6)
-  doc.text(pastor, 130, y + 6)
+  doc.setFontSize(11)
+  doc.setTextColor(30, 30, 30)
+  const bodyLines = doc.splitTextToSize(bodyText, 170)
+  doc.text(bodyLines, 20, y)
+  y += bodyLines.length * 7 + 12
 
-  doc.line(20, y + 15, 90, y + 15)
-  doc.line(120, y + 15, 190, y + 15)
+  y = addAmountBox(doc, data.suma, data.moneda, y)
+  y += 12
 
-  addStampila(doc, church, 120, y + 18, 60, 20)
+  y = addSignatures(doc, [
+    { label: 'Beneficiar', name: beneficiar },
+    { label: 'Casier', name: casier },
+    { label: 'Pastor', name: pastor }
+  ], y)
 
-  baseFooter(doc, pageH)
+  addStampilaRect(doc, church, 128, pageH - 55, 62, 28)
+  newFooter(doc, church)
   return doc
 }
 
-// Keep old name as alias for history re-download
 export const generateAdeverinta = generateDonatie
 
+// ============================================================
+// RAPORT FINANCIAR
+// ============================================================
 export function generateRaport(church, data, tip, interval) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageH = doc.internal.pageSize.height
 
-  baseHeader(doc, church)
+  newHeader(doc, church)
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(14)
-  doc.setTextColor(20)
-  doc.text(stripDiacritics(`RAPORT FINANCIAR - ${tip.toUpperCase()}`), 105, 44, { align: 'center' })
-  doc.setFontSize(9)
+  let y = addTitle(doc, `RAPORT FINANCIAR - ${tip.toUpperCase()}`, 57)
+
   doc.setFont('helvetica', 'normal')
-  doc.text(stripDiacritics(interval), 105, 51, { align: 'center' })
-
-  let y = 60
+  doc.setFontSize(9)
+  doc.setTextColor(80, 80, 80)
+  doc.text(stripDiacritics(interval), 105, y, { align: 'center' })
+  y += 14
 
   const drawRow = (label, val, bold = false) => {
     doc.setFont('helvetica', bold ? 'bold' : 'normal')
-    doc.setFontSize(10)
+    doc.setFontSize(11)
+    doc.setTextColor(30, 30, 30)
     doc.text(stripDiacritics(label), 20, y)
-    doc.text(stripDiacritics(String(val)), 160, y, { align: 'right' })
-    y += 7
+    doc.text(stripDiacritics(String(val)), 190, y, { align: 'right' })
+    y += 8
   }
 
-  drawRow('Venituri totale:', `${data.venituri.toFixed(2)} lei`, false)
-  drawRow('Cheltuieli totale:', `${data.cheltuieli.toFixed(2)} lei`, false)
-  doc.setDrawColor(200)
+  drawRow('Venituri totale:', `${data.venituri.toFixed(2)} lei`)
+  drawRow('Cheltuieli totale:', `${data.cheltuieli.toFixed(2)} lei`)
+  doc.setDrawColor(180, 180, 180)
+  doc.setLineWidth(0.5)
   doc.line(20, y, 190, y)
-  y += 3
+  y += 5
   drawRow('Sold net:', `${data.sold.toFixed(2)} lei`, true)
 
-  y += 5
+  y += 8
   if (data.byCategory?.length) {
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(11)
+    doc.setFontSize(12)
+    doc.setTextColor(20, 20, 20)
     doc.text('Detalii pe categorii:', 20, y)
-    y += 7
-    data.byCategory.forEach(cat => {
-      drawRow(`  ${cat.categorie}:`, `${cat.total.toFixed(2)} lei`)
-    })
+    y += 8
+    data.byCategory.forEach(cat => drawRow(`  ${cat.categorie}:`, `${cat.total.toFixed(2)} lei`))
   }
 
-  addStampila(doc, church, 130, pageH - 45, 55, 18)
-
-  baseFooter(doc, pageH)
+  addStampilaRect(doc, church, 128, pageH - 55, 62, 28)
+  newFooter(doc, church)
   return doc
 }

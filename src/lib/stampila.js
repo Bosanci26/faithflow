@@ -3,7 +3,7 @@ import { CULTE, stripDiacritics } from './constants'
 export function generateStampilaSVG(church) {
   const cult = CULTE[church.denomination] || church.denomination || ''
   const name = church.name || ''
-  const location = `${church.city || ''}, jud. ${church.county || ''}`
+  const location = `${church.city || ''} · ${church.county || ''}`
 
   const cultText = stripDiacritics(cult)
   const nameText = stripDiacritics(name)

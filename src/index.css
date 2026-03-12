@@ -1,18 +1,5 @@
+/* Default: light mode */
 :root {
-  --bg: #070d1b;
-  --card: #0e1726;
-  --card2: #131f35;
-  --gold: #D4A843;
-  --gold-dark: #B8922e;
-  --text: #eae5dc;
-  --text-muted: #8a9bb5;
-  --border: rgba(212, 168, 67, 0.2);
-  --danger: #e05252;
-  --success: #4caf7d;
-  --nav-h: 68px;
-}
-
-[data-theme="light"] {
   --bg: #f0ede8;
   --card: #ffffff;
   --card2: #f8f7f4;
@@ -23,6 +10,20 @@
   --border: rgba(184, 146, 46, 0.25);
   --danger: #c0392b;
   --success: #27814f;
+  --nav-h: 68px;
+}
+
+[data-theme="dark"] {
+  --bg: #070d1b;
+  --card: #0e1726;
+  --card2: #131f35;
+  --gold: #D4A843;
+  --gold-dark: #B8922e;
+  --text: #eae5dc;
+  --text-muted: #8a9bb5;
+  --border: rgba(212, 168, 67, 0.2);
+  --danger: #e05252;
+  --success: #4caf7d;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -240,3 +241,43 @@ label {
 
 .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
 .empty-state p { font-size: 15px; }
+
+/* Touch targets */
+.btn { min-height: 44px; }
+input, select, textarea { min-height: 44px; }
+
+/* Documente Tab — responsive layout */
+.doc-type-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+.doc-type-btn {
+  flex: 1;
+  justify-content: center;
+  white-space: nowrap;
+  font-size: 12px !important;
+  padding: 6px 8px !important;
+}
+.doc-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.doc-btn-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+.doc-btn-main { flex: 1; justify-content: center; }
+.doc-btn-print { padding: 10px 14px; white-space: nowrap; }
+
+@media (max-width: 480px) {
+  .doc-grid-2 { grid-template-columns: 1fr; }
+  .doc-btn-row { flex-direction: column; }
+  .doc-btn-main, .doc-btn-print { width: 100%; justify-content: center; }
+  .card { padding: 14px; }
+  .card-sm { padding: 10px 12px; }
+  .section-title { font-size: 18px; }
+  .dash-content { padding: 12px; padding-bottom: calc(var(--nav-h) + 12px); }
+}

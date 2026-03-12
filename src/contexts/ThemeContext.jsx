@@ -5,7 +5,10 @@ const ThemeContext = createContext()
 export function ThemeProvider({ children }) {
   const [dark, setDark] = useState(() => {
     const saved = localStorage.getItem('ff-theme')
-    return saved ? saved === 'dark' : false
+    const isDark = saved ? saved === 'dark' : false
+    // Set attribute synchronously to avoid flash
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light')
+    return isDark
   })
 
   useEffect(() => {
