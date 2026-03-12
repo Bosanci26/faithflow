@@ -137,7 +137,7 @@ export default function DashboardLayout() {
   }
 
   return (
-    <div className="dash-root" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+    <div className="dash-root">
       {/* HEADER */}
       <header className="dash-header">
         <div className="dash-header-left">
@@ -191,7 +191,7 @@ export default function DashboardLayout() {
       </header>
 
       {/* CONTENT */}
-      <main className="dash-content fade-in">
+      <main className="dash-content fade-in" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
         {renderTab()}
       </main>
 

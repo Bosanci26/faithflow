@@ -3,7 +3,7 @@ export const CURRENCIES = ['RON', 'EUR', 'GBP', 'USD']
 export const CURRENCY_SYMBOLS = { RON: 'lei', EUR: '€', GBP: '£', USD: '$' }
 
 export const VENITURI_CATEGORII = [
-  'Zeciuiala', 'Daruri', 'Donatii', 'Colecte speciale',
+  'Zeciuiala', 'Daruri', 'Donatii',
   'Misiuni', 'Constructie', 'Alte venituri'
 ]
 
