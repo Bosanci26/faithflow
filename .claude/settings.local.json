@@ -19,7 +19,9 @@
       "Bash(find /c/Users/andre/faithflow -type f -name \"*.sql\" -o -name \"*.md\" 2>/dev/null | head -20)",
       "Bash(git log:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(grep -r \"CREATE TABLE\\\\|create table\" /c/Users/andre/faithflow --include=\"*.sql\" 2>/dev/null | head -50)",
+      "Bash(git push:*)"
     ]
   }
 }
