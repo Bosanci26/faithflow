@@ -30,6 +30,7 @@ export default function DocumenteTab({ church, refreshChurch }) {
   const [success, setSuccess] = useState('')
   const [docs, setDocs] = useState([])
   const [loadingDocs, setLoadingDocs] = useState(false)
+  const [deletingDoc, setDeletingDoc] = useState(null)
 
   // Chitanta form
   const [chitantaForm, setChitantaForm] = useState({
@@ -52,7 +53,6 @@ export default function DocumenteTab({ church, refreshChurch }) {
     suma: '', moneda: 'RON',
     casier: church?.casier_name || '', pastor: church?.pastor_name || ''
   })
-  const [donatieDirectie, setDonatieDirectie] = useState('primita')
 
   useEffect(() => {
     if (church) {
@@ -97,20 +97,23 @@ export default function DocumenteTab({ church, refreshChurch }) {
         doc = generateChitanta(church, data)
         filename = `chitanta-${nr}-${chitantaForm.data}.pdf`
 
-        await supabase.from('documente').insert({
+        // Insert document, get ID back
+        const { data: docData } = await supabase.from('documente').insert({
           church_id: church.id, tip: 'chitanta', nr: String(nr),
           data: chitantaForm.data, suma: parseFloat(chitantaForm.suma),
           moneda: chitantaForm.moneda, persoana: chitantaForm.donator,
           detalii: chitantaForm.scop || chitantaForm.categorie
-        })
-        // Auto-add to venituri
+        }).select().single()
+
+        // Auto-add VENIT cu document_id
         await supabase.from('venituri').insert({
           church_id: church.id,
           data: chitantaForm.data,
           suma: parseFloat(chitantaForm.suma),
           moneda: chitantaForm.moneda,
           categorie: chitantaForm.categorie,
-          descriere: `Chitanta nr. ${nr} - ${chitantaForm.donator}`
+          descriere: `Chitanta nr. ${nr} - ${chitantaForm.donator}`,
+          document_id: docData?.id
         })
 
       } else if (tip === 'proces_verbal') {
@@ -120,48 +123,54 @@ export default function DocumenteTab({ church, refreshChurch }) {
         doc = generateProcesVerbal(church, data)
         filename = `pv-${nr}-${pvForm.data}.pdf`
 
-        await supabase.from('documente').insert({
+        // Insert document, get ID back
+        const { data: docData } = await supabase.from('documente').insert({
           church_id: church.id, tip: 'proces_verbal', nr: String(nr),
           data: pvForm.data, suma: parseFloat(pvForm.suma),
           moneda: pvForm.moneda, persoana: pvForm.casier,
           detalii: pvForm.tipServiciu
+        }).select().single()
+
+        // Auto-add VENIT cu document_id
+        await supabase.from('venituri').insert({
+          church_id: church.id,
+          data: pvForm.data,
+          suma: parseFloat(pvForm.suma),
+          moneda: pvForm.moneda,
+          categorie: 'Colecta',
+          descriere: `PV nr. ${nr} - ${pvForm.tipServiciu} - ${pvForm.data}`,
+          document_id: docData?.id
         })
 
       } else {
+        // DONATIE — intotdeauna CHELTUIALA
         if (!donatieForm.beneficiar || !donatieForm.suma) { setGenerating(false); return }
         nr = await getNextNr('last_donatie_nr')
         data = { ...donatieForm, nr, suma: parseFloat(donatieForm.suma) }
         doc = generateDonatie(church, data)
         filename = `donatie-${nr}-${donatieForm.data}.pdf`
 
-        await supabase.from('documente').insert({
+        // Insert document, get ID back
+        const { data: docData } = await supabase.from('documente').insert({
           church_id: church.id, tip: 'donatie', nr: String(nr),
           data: donatieForm.data, suma: parseFloat(donatieForm.suma),
           moneda: donatieForm.moneda, persoana: donatieForm.beneficiar,
           detalii: donatieForm.tipDonatie
-        })
-        // Auto-add to venituri or cheltuieli
+        }).select().single()
+
         const ciStr = donatieForm.serieCI && donatieForm.nrCI
           ? ` - CI ${donatieForm.serieCI}/${donatieForm.nrCI}` : ''
-        if (donatieDirectie === 'primita') {
-          await supabase.from('venituri').insert({
-            church_id: church.id,
-            data: donatieForm.data,
-            suma: parseFloat(donatieForm.suma),
-            moneda: donatieForm.moneda,
-            categorie: 'Donatie primita',
-            descriere: `Donatie primita - ${donatieForm.beneficiar}${ciStr}`
-          })
-        } else {
-          await supabase.from('cheltuieli').insert({
-            church_id: church.id,
-            data: donatieForm.data,
-            suma: parseFloat(donatieForm.suma),
-            moneda: donatieForm.moneda,
-            categorie: 'Donatie data',
-            descriere: `Donatie data - ${donatieForm.beneficiar}${ciStr}`
-          })
-        }
+
+        // Auto-add CHELTUIALA cu document_id
+        await supabase.from('cheltuieli').insert({
+          church_id: church.id,
+          data: donatieForm.data,
+          suma: parseFloat(donatieForm.suma),
+          moneda: donatieForm.moneda,
+          categorie: 'Donatie',
+          descriere: `Donatie nr. ${nr} - ${donatieForm.beneficiar}${ciStr}`,
+          document_id: docData?.id
+        })
       }
 
       if (doPrint) {
@@ -179,6 +188,29 @@ export default function DocumenteTab({ church, refreshChurch }) {
       console.error(err)
     }
     setGenerating(false)
+  }
+
+  const handleDeleteDoc = async (d) => {
+    const confirmed = window.confirm(
+      `Esti sigur? Se va sterge si tranzactia asociata de ${d.suma} ${d.moneda}.`
+    )
+    if (!confirmed) return
+
+    setDeletingDoc(d.id)
+    try {
+      // Sterge tranzactia asociata (venit sau cheltuiala)
+      if (d.tip === 'chitanta' || d.tip === 'proces_verbal') {
+        await supabase.from('venituri').delete().eq('document_id', d.id)
+      } else if (d.tip === 'donatie') {
+        await supabase.from('cheltuieli').delete().eq('document_id', d.id)
+      }
+      // Sterge documentul
+      await supabase.from('documente').delete().eq('id', d.id)
+      setDocs(prev => prev.filter(doc => doc.id !== d.id))
+    } catch (err) {
+      console.error(err)
+    }
+    setDeletingDoc(null)
   }
 
   const handleRedownload = (d) => {
@@ -201,6 +233,9 @@ export default function DocumenteTab({ church, refreshChurch }) {
       return (
         <form className="card fade-in" onSubmit={e => handleGenerate(e)}>
           <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 14, color: 'var(--gold)' }}>Chitanta</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+            Venitul va fi adaugat automat in Tranzactii.
+          </div>
 
           <div className="form-group">
             <label>Data *</label>
@@ -253,6 +288,9 @@ export default function DocumenteTab({ church, refreshChurch }) {
       return (
         <form className="card fade-in" onSubmit={e => handleGenerate(e)}>
           <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 14, color: 'var(--gold)' }}>Proces Verbal Colecta</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+            Colecta va fi adaugata automat ca venit in Tranzactii.
+          </div>
 
           <div className="form-group">
             <label>Data *</label>
@@ -312,26 +350,13 @@ export default function DocumenteTab({ church, refreshChurch }) {
       )
     }
 
-    // Donatie
+    // Donatie — intotdeauna cheltuiala
     const set = k => e => setDonatieForm(f => ({ ...f, [k]: e.target.value }))
     return (
       <form className="card fade-in" onSubmit={e => handleGenerate(e)}>
         <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 14, color: 'var(--gold)' }}>Adeverinta Donatie</div>
-
-        <div style={{ marginBottom: 14 }}>
-          <label style={{ marginBottom: 8 }}>Tipul donatiei</label>
-          <div className="toggle-pill">
-            <button type="button"
-              className={donatieDirectie === 'primita' ? 'active' : ''}
-              onClick={() => setDonatieDirectie('primita')}>
-              ↓ Primita (venit)
-            </button>
-            <button type="button"
-              className={donatieDirectie === 'data' ? 'active' : ''}
-              onClick={() => setDonatieDirectie('data')}>
-              ↑ Data (cheltuiala)
-            </button>
-          </div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+          Donatia va fi inregistrata automat ca cheltuiala in Tranzactii.
         </div>
 
         <div className="form-group">
@@ -471,6 +496,15 @@ export default function DocumenteTab({ church, refreshChurch }) {
                     title="Re-descarca"
                   >
                     ↓
+                  </button>
+                  <button
+                    className="btn btn-danger btn-sm"
+                    style={{ flexShrink: 0, padding: '4px 10px' }}
+                    onClick={() => handleDeleteDoc(d)}
+                    disabled={deletingDoc === d.id}
+                    title="Sterge document si tranzactia asociata"
+                  >
+                    {deletingDoc === d.id ? '...' : '🗑'}
                   </button>
                 </div>
               ))}
